@@ -1,0 +1,233 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Social Media Scheduler - Dashboard</title>
+    <style>
+        body {
+            font-family: Arial, sans-serif;
+            max-width: 800px;
+            margin: 0 auto;
+            padding: 20px;
+        }
+        form, #dashboard {
+            display: flex;
+            flex-direction: column;
+            margin-bottom: 20px;
+        }
+        input, textarea, select {
+            margin-bottom: 10px;
+            padding: 5px;
+        }
+        button {
+            padding: 10px;
+            background-color: #007bff;
+            color: white;
+            border: none;
+            cursor: pointer;
+            margin-bottom: 10px;
+        }
+        button:hover {
+            background-color: #0056b3;
+        }
+        #authForms {
+            display: block;
+        }
+        #dashboard {
+            display: none;
+        }
+        #scheduledPosts {
+            margin-top: 20px;
+        }
+        .post {
+            border: 1px solid #ddd;
+            padding: 10px;
+            margin-bottom: 10px;
+        }
+        #errorMessage {
+            color: red;
+            font-weight: bold;
+            margin-top: 20px;
+        }
+        #twitterLoginButton {
+            background-color: #1DA1F2;
+        }
+        #twitterLoginButton:hover {
+            background-color: #1a91da;
+        }
+    </style>
+</head>
+<body>
+    <h1>Social Media Scheduler</h1>
+    
+    <div id="authForms">
+        <h2>Sign Up</h2>
+        <form id="signupForm">
+            <input type="email" id="signupEmail" placeholder="Email" required>
+            <input type="password" id="signupPassword" placeholder="Password" required>
+            <button type="submit">Sign Up</button>
+        </form>
+
+        <h2>Login</h2>
+        <form id="loginForm">
+            <input type="email" id="loginEmail" placeholder="Email" required>
+            <input type="password" id="loginPassword" placeholder="Password" required>
+            <button type="submit">Login</button>
+        </form>
+
+        <h2>Login with Twitter</h2>
+        <button id="twitterLoginButton">Login with Twitter</button>
+    </div>
+
+    <div id="dashboard">
+        <h2>Welcome to your Dashboard</h2>
+        <button id="logoutButton">Logout</button>
+        
+        <h3>Schedule a New Post</h3>
+        <form id="scheduleForm">
+            <textarea id="postContent" placeholder="What's on your mind?" required></textarea>
+            <input type="datetime-local" id="postDateTime" required>
+            <select id="postPlatform" required>
+                <option value="">Select Platform</option>
+                <option value="twitter">Twitter</option>
+                <option value="instagram">Instagram</option>
+            </select>
+            <button type="submit">Schedule Post</button>
+        </form>
+
+        <h3>Your Scheduled Posts</h3>
+        <div id="scheduledPosts"></div>
+    </div>
+
+    <div id="message"></div>
+    <div id="errorMessage"></div>
+
+    <script>
+        const authForms = document.getElementById('authForms');
+        const dashboard = document.getElementById('dashboard');
+        const messageDiv = document.getElementById('message');
+        const errorMessageDiv = document.getElementById('errorMessage');
+
+        function showMessage(message, isError = false) {
+            if (isError) {
+                errorMessageDiv.textContent = message;
+                errorMessageDiv.style.display = 'block';
+                messageDiv.style.display = 'none';
+            } else {
+                messageDiv.textContent = message;
+                messageDiv.style.display = 'block';
+                errorMessageDiv.style.display = 'none';
+            }
+        }
+
+        document.getElementById('signupForm').addEventListener('submit', async (e) => {
+            e.preventDefault();
+            const email = document.getElementById('signupEmail').value;
+            const password = document.getElementById('signupPassword').value;
+            
+            try {
+                const response = await fetch('/signup', {
+                    method: 'POST',
+                    headers: {
+                        'Content-Type': 'application/json',
+                    },
+                    body: JSON.stringify({ email, password }),
+                });
+                const data = await response.json();
+                if (response.ok) {
+                    showMessage('Signup successful! Please log in.');
+                } else {
+                    showMessage(`Signup failed: ${data.error}`, true);
+                }
+            } catch (error) {
+                showMessage(`Error: ${error.message}`, true);
+            }
+        });
+
+        document.getElementById('loginForm').addEventListener('submit', async (e) => {
+            e.preventDefault();
+            const email = document.getElementById('loginEmail').value;
+            const password = document.getElementById('loginPassword').value;
+            
+            try {
+                const response = await fetch('/login', {
+                    method: 'POST',
+                    headers: {
+                        'Content-Type': 'application/json',
+                    },
+                    body: JSON.stringify({ email, password }),
+                });
+                const data = await response.json();
+                if (response.ok) {
+                    authForms.style.display = 'none';
+                    dashboard.style.display = 'block';
+                    showMessage('Login successful!');
+                    fetchScheduledPosts();
+                } else {
+                    showMessage(`Login failed: ${data.error}`, true);
+                }
+            } catch (error) {
+                showMessage(`Error: ${error.message}`, true);
+            }
+        });
+
+        document.getElementById('logoutButton').addEventListener('click', () => {
+            authForms.style.display = 'block';
+            dashboard.style.display = 'none';
+            showMessage('You have been logged out.');
+        });
+
+        document.getElementById('scheduleForm').addEventListener('submit', async (e) => {
+            e.preventDefault();
+            const content = document.getElementById('postContent').value;
+            const dateTime = document.getElementById('postDateTime').value;
+            const platform = document.getElementById('postPlatform').value;
+            
+            try {
+                const response = await fetch('/schedule-post', {
+                    method: 'POST',
+                    headers: {
+                        'Content-Type': 'application/json',
+                    },
+                    body: JSON.stringify({ content, dateTime, platform }),
+                });
+                const data = await response.json();
+                if (response.ok) {
+                    showMessage('Post scheduled successfully!');
+                    fetchScheduledPosts();
+                } else {
+                    showMessage(`Failed to schedule post: ${data.error}`, true);
+                }
+            } catch (error) {
+                showMessage(`Error: ${error.message}`, true);
+            }
+        });
+
+        async function fetchScheduledPosts() {
+            try {
+                const response = await fetch('/scheduled-posts');
+                const posts = await response.json();
+                const postsContainer = document.getElementById('scheduledPosts');
+                postsContainer.innerHTML = '';
+                posts.forEach(post => {
+                    const postElement = document.createElement('div');
+                    postElement.classList.add('post');
+                    postElement.innerHTML = `
+                        <p><strong>Content:</strong> ${post.content}</p>
+                        <p><strong>Date/Time:</strong> ${new Date(post.date_time).toLocaleString()}</p>
+                        <p><strong>Platform:</strong> ${post.platform}</p>
+                    `;
+                    postsContainer.appendChild(postElement);
+                });
+            } catch (error) {
+                showMessage(`Failed to fetch scheduled posts: ${error.message}`, true);
+            }
+        }
+
+        document.getElementById('twitterLoginButton').addEventListener('click', () => {
+            window.location.href = '/auth/twitter';
+        });
+    </script>
+</body>
+</html>
